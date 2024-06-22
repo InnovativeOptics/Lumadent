@@ -128,13 +128,24 @@ app_ui <- function(request) {
                              },
                              em("Compatible Innovative Optics Product")),
                              tableOutput("tableInfo"))),
+################################################################################
+###6/22/24 Edited by Melissa Rich
+## Remove Back picture
+################################################################################
 
-             fluidRow(column(6, align = 'center',
-                             imageOutput("productImageF",
-                                         height = "75%")),
-                      column(6, align = 'center',
-                             imageOutput("productImageB",
-                                         height = "75%"))),
+fluidRow(column(12, align = 'center',
+                imageOutput("productImageF",
+                            height = "75%", width = '50%'))),
+# column(6, align = 'center',
+#        imageOutput("productImageB",
+#                    height = "75%"))),
+
+#             fluidRow(column(6, align = 'center',
+#                             imageOutput("productImageF",
+#                                         height = "75%")),
+#                      column(6, align = 'center',
+#                             imageOutput("productImageB",
+#                                         height = "75%"))),
 
              fluidRow(column(12,
                              align = 'center',

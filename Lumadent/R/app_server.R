@@ -35,6 +35,10 @@ app_server <- function(input, output, session) {
 
   selected_data <- eventReactive(input$mod,{
     req(input$mfg)
+
+    print(input$mfg)
+    #print c("input$mod", input$mod)
+
     dental_data %>%
       filter(`Laser Mfg` == input$mfg,
              `Laser Model` == input$mod)
@@ -66,7 +70,7 @@ app_server <- function(input, output, session) {
       </p>
       </h4>
       <h1>
-      <a href="mailto:john@innovativeoptics.com
+      <a href="mailto:sales@innovativeoptics.com
         ?subject=New Order - Lumadent - ',
         Sys.time(),
         '&body=This email is prepopulated with data currently entered in the app. Hello, I have the Lumadent',
@@ -144,19 +148,27 @@ app_server <- function(input, output, session) {
                                   })
 
   image_location <- eventReactive(c(input$mod, input$loupestyle),{
+
+    print("image_location function")
+    print(input$mod)
+    print(input$loupstyle)
+
     req(input$run)
+
       loupe_rec <- loupe_image_paths %>%
         filter(stringr::str_detect(loupe_image_paths$LoupeImages, sub(" ", "",  input$loupestyle)) &
                  stringr::str_detect(loupe_image_paths$LoupeImages, stringr::coll(paste0(selected_data()$`Eyewear Lens Compatible`, "."))
                  )
         )
+      print("loupe_rec")
+      print(loupe_rec)
 
       c(glue::glue_safe("www/LoupeImages/", loupe_rec$LoupeImages[[2]]),
-        if_else(selected_data()$`Eyewear Lens Compatible` == "Pi19",
+        if_else(selected_data()$`Eyewear Lens Compatible` == "Pi19" || selected_data()$`Eyewear Lens Compatible` == "Pi23",
                 glue::glue_safe("www/recs/", selected_data()$`Rec1`, ".jpeg"),
                 glue::glue_safe("www/recs/", selected_data()$`Rec1`, ".jpg")
         ),
-        if_else(selected_data()$`Eyewear Lens Compatible` == "Pi19",
+        if_else(selected_data()$`Eyewear Lens Compatible` == "Pi19"|| selected_data()$`Eyewear Lens Compatible` == "Pi23",
                 glue::glue_safe("www/recs/", selected_data()$`Rec2`, ".jpeg"),
                 glue::glue_safe("www/recs/", selected_data()$`Rec2`, ".jpg")
         ),
@@ -165,6 +177,8 @@ app_server <- function(input, output, session) {
 
   })
   output$productImageF <- renderImage({
+    print("output_productImageF function")
+    print(image_location()[[1]])
     list(src = image_location()[[1]],
          width = "100%",
          contentType = "image/png")
