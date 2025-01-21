@@ -9,13 +9,57 @@
 
 # list loupe image paths to filter from
 loupe_image_paths <- tibble("LoupeImages" = list.files(path = "www/LoupeImages/"))
-# Load Orascoptic loupe data
-lumadent_data <- readxl::read_excel("data/Lumadent_loupe_data.xlsx")
-# Load dental data
 
-dental_data <- readxl::read_excel("data/Dental_data.xlsx") %>%
+options(
+  gargle_oauth_email = TRUE,
+  gargle_oauth_cache = ".secrets"
+)
+
+googledrive::drive_auth(cache = ".secrets", email = "innovativeopticsdatabase@gmail.com")
+googlesheets4::gs4_auth(cache = ".secrets", email = "innovativeopticsdatabase@gmail.com")
+
+
+sheet_id <- googledrive::drive_get("Dental_data")$id
+
+
+# Load Lumadent loupe data
+# lumadent_data <- readxl::read_excel("data/Lumadent_loupe_data.xlsx")
+
+#lumadent_data <- readxl::read_excel("data/Dental_data.xlsx",
+#                                    sheet = "Loupe_types") %>%
+#  filter(`Mfg` == "Lumadent") %>%
+#  rename(`Lumadent Frame` = Mod, Style = Size, `Innovative Optics Insert` = `Insert Part Number`) %>%
+#  filter(!`Lumadent Frame` %in% c("Argon", "Standard")) %>%
+#  select(-Mfg)
+
+lumadent_data <- googlesheets4::read_sheet(sheet_id, sheet = "Loupe_types", col_types = "c")  %>%
+  filter(`Mfg` == "Lumadent" & `Mod` != "Standard") %>%
+  rename(`Lumadent Frame` = Mod, Style = Size, `Innovative Optics Insert` = `Insert Part Number`)
+
+
+# Load lens sheet from dental_data file
+#lens_data <- readxl::read_excel("data/Dental_data.xlsx", sheet = "Lens_details") %>%
+#  select(-VLT)
+lens_data <- googlesheets4::read_sheet(sheet_id, sheet = "Lens_details") %>%
+  select(-VLT)
+
+
+#dental_data <- readxl::read_excel("data/Dental_data.xlsx") %>%
+#  filter(`Laser Mfg` != "") %>%
+#  mutate(VLT = scales::percent(as.numeric(VLT))) %>%
+#  left_join(lens_data, by = join_by(`Eyewear Lens Compatible` == Lens))
+
+#dental_data <- readxl::read_excel("data/Dental_data.xlsx") %>%
+#  filter(`Laser Mfg` != "") %>%
+#  select(-Website) %>%
+#  mutate(VLT = scales::percent(as.numeric(VLT))) %>%
+#  left_join(lens_data, by = join_by(`Eyewear Lens Compatible` == Lens))
+
+dental_data <- googlesheets4::read_sheet(sheet_id, sheet = "laser_info", col_types = "c") %>%
   filter(`Laser Mfg` != "") %>%
-  mutate(VLT = scales::percent(as.numeric(VLT)))
+  select(-Website) %>%
+  mutate(VLT = scales::percent(as.numeric(VLT))) %>%
+  left_join(lens_data, by = join_by(`Eyewear Lens Compatible` == Lens))
 
 app_server <- function(input, output, session) {
   # Your application server logic
@@ -27,26 +71,74 @@ app_server <- function(input, output, session) {
     updateSelectInput(inputId = "mod",
                       choices = sort(mfg_filtered_dental_data$`Laser Model`))
   })
-  loupe_insert <- eventReactive(c(input$loupestyle, input$style),{
+
+
+  observeEvent(input$loupestyle,{
+    # filter dental data to select loupestyle
+    filtered_lumadent_data <- lumadent_data  %>%
+      filter(`Lumadent Frame` == input$loupestyle)
+    # update select input - style
+    updateSelectInput(inputId = "style",
+                      choices = sort(filtered_lumadent_data$`Style`))
+  })
+
+
+  loupe_insert <- eventReactive(c(input$loupestyle, input$style, input$mfg, input$mod),{
+
     lumadent_data %>%
       filter(`Lumadent Frame` == input$loupestyle) %>%
       filter(`Style` == input$style)
   })
 
-  selected_data <- eventReactive(input$mod,{
+
+  selected_data <- reactive({
     req(input$mfg)
+    req(input$mod)
+    req(loupe_insert())
 
-    print(input$mfg)
-    #print c("input$mod", input$mod)
-
-    dental_data %>%
+    result <- dental_data %>%
       filter(`Laser Mfg` == input$mfg,
-             `Laser Model` == input$mod)
+              `Laser Model` == input$mod) %>%
+      DentalLibrary::generate_lens_link(loupe_insert = loupe_insert())
+
+#    result <- dental_data %>%
+#      filter(`Laser Mfg` == input$mfg,
+#             `Laser Model` == input$mod) %>%
+#      mutate(`INVO Part Number Raw` = if_else(`Eyewear Lens Compatible` == "Gi1",
+#                                              glue::glue_safe(loupe_insert()$`Innovative Optics Insert`,"." , `Eyewear Lens Compatible`),
+#                                              glue::glue_safe(loupe_insert()$`Innovative Optics Insert`,"." , `Eyewear Lens Compatible`, ".2B")),
+#             `Website`= case_when(loupe_insert()$`Innovative Optics Insert` %in% c("IVL") & `Eyewear Lens Compatible` == "Pi1" ~ "https://innovativeoptics.com/product/pi1-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL.R") & `Eyewear Lens Compatible` == "Pi1" ~ "https://innovativeoptics.com/product/ivl-r-pi1-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR") & `Eyewear Lens Compatible` == "Pi1" ~ "https://innovativeoptics.com/product/pi1-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR.R") & `Eyewear Lens Compatible` == "Pi1" ~ "https://innovativeoptics.com/product/ivr-r-pi1-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL") & `Eyewear Lens Compatible` == "Pi17" ~ "https://innovativeoptics.com/product/pi17-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL.R") & `Eyewear Lens Compatible` == "Pi17" ~ "https://innovativeoptics.com/product/ivl-r-pi17-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL") & `Eyewear Lens Compatible` == "Pi19" ~ "https://innovativeoptics.com/product/pi19-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL.R") & `Eyewear Lens Compatible` == "Pi19" ~ "https://innovativeoptics.com/product/ivl-r-pi19-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR") & `Eyewear Lens Compatible` == "Pi19" ~ "https://innovativeoptics.com/product/pi19-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR.R") & `Eyewear Lens Compatible` == "Pi19" ~ "https://innovativeoptics.com/product/ivr-r-pi19-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL") & `Eyewear Lens Compatible` == "Pi23" ~ "https://innovativeoptics.com/product/pi23-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL.R") & `Eyewear Lens Compatible` == "Pi23" ~ "https://innovativeoptics.com/product/ivl-r-pi23-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR") & `Eyewear Lens Compatible` == "Pi23" ~ "https://innovativeoptics.com/product/pi23-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR.R") & `Eyewear Lens Compatible` == "Pi23" ~ "https://innovativeoptics.com/product/ivr-r-pi23-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR.R") & `Eyewear Lens Compatible` == "Pi23" ~ "https://innovativeoptics.com/product/ivr-r-pi23-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL") & `Eyewear Lens Compatible` == "Gi1" ~ "https://innovativeoptics.com/product/gi1-inview-large-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVL.R") & `Eyewear Lens Compatible` == "Gi1" ~ "https://innovativeoptics.com/product/ivl-r-gi1-laser-insert-for-loupes/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR") & `Eyewear Lens Compatible` == "Gi1" ~ "https://innovativeoptics.com/product/gi1-inview-regular-laser-clip-in/",
+#                                  loupe_insert()$`Innovative Optics Insert` %in% c("IVR.R") & `Eyewear Lens Compatible` == "Gi1" ~ "https://innovativeoptics.com/product/gi1-inview-regular-laser-clip-in/",
+#                                  .default = Website)
+#      ) %>%
+#      mutate(`INVO Part Number` = glue::glue_safe("<a href='{Website}' target ='_blank'> {INVO Part Number Raw} </a> "))
+
+    print(result$`INVO Part Number`)
+    result
   })
+
   observeEvent(input$run,{
     shinyjs::hide(id = "run", anim = T, animType = "fade")
   })
-  user_info <- eventReactive(c(input$mod, input$loupestyle, input$style),{
+  user_info <- eventReactive(c(input$loupestyle, input$style, input$mfg, input$mod),{
+
     tibble(
       "Loupe Style" = paste0(loupe_insert()$`Lumadent Frame`, " ", loupe_insert()$`Style`),
       "Device" = glue::glue_safe(selected_data()$`Laser Mfg`, " ", selected_data()$`Laser Model`),
@@ -95,12 +187,12 @@ app_server <- function(input, output, session) {
 
   })
 
-  table_info <- eventReactive(c(input$mod, input$loupestyle, input$style),{
-    tibble("INVO Part Number" = if_else(selected_data()$`Eyewear Lens Compatible` == "Gi1",
-                                              glue::glue_safe(loupe_insert()$`Innovative Optics Insert`,"." , selected_data()$`Eyewear Lens Compatible`),
-                                              glue::glue_safe(loupe_insert()$`Innovative Optics Insert`,"." , selected_data()$`Eyewear Lens Compatible`, ".2B")),
-                 "Optical Density Specs" = selected_data()$`Optical Density`,
-                 "% VLT" = selected_data()$VLT)
+
+  table_info <- eventReactive(c(input$loupestyle, input$style, input$mfg, input$mod),{
+    tibble("INVO Part Number" = selected_data()$`INVO Part Number`,
+           "Optical Density Specs" = selected_data()$`Optical Density`,
+           "% VLT" = selected_data()$VLT)
+
   })
 
   output$tableInfo <- renderTable(bordered = T,
@@ -109,9 +201,11 @@ app_server <- function(input, output, session) {
                                   hover = T,
                                   {
                                     table_info()
-                                  })
 
-  rec1_table <- eventReactive(input$mod,{
+                                  }, sanitize.text.function = function(x) x)
+
+  rec1_table <- eventReactive(c(input$loupestyle, input$style, input$mfg, input$mod),{
+
     tibble("INVO Part Number" = selected_data()$`Rec1`)
   })
 
@@ -123,7 +217,9 @@ app_server <- function(input, output, session) {
                                     rec1_table()
                                   })
 
-  rec2_table <- eventReactive(input$mod,{
+
+  rec2_table <- eventReactive(c(input$loupestyle, input$style, input$mfg, input$mod),{
+
     tibble("INVO Part Number" = selected_data()$`Rec2`)
   })
 
@@ -135,7 +231,8 @@ app_server <- function(input, output, session) {
                                     rec2_table()
                                   })
 
-  rec3_table <- eventReactive(input$mod,{
+  rec3_table <- eventReactive(c(input$loupestyle, input$style, input$mfg, input$mod),{
+
     tibble("INVO Part Number" = selected_data()$`Rec3`)
   })
 
@@ -147,38 +244,35 @@ app_server <- function(input, output, session) {
                                     rec3_table()
                                   })
 
-  image_location <- eventReactive(c(input$mod, input$loupestyle),{
 
-    print("image_location function")
-    print(input$mod)
-    print(input$loupstyle)
-
+  image_location <- eventReactive(c(input$loupestyle, input$style, input$mfg, input$mod),{
     req(input$run)
+    loupe_rec <- loupe_image_paths %>%
+      filter(stringr::str_detect(loupe_image_paths$LoupeImages, sub(" ", "",  input$loupestyle)) &
+               stringr::str_detect(loupe_image_paths$LoupeImages, stringr::coll(paste0(selected_data()$`Eyewear Lens Compatible`, "."))
+               )
+      )
 
-      loupe_rec <- loupe_image_paths %>%
-        filter(stringr::str_detect(loupe_image_paths$LoupeImages, sub(" ", "",  input$loupestyle)) &
-                 stringr::str_detect(loupe_image_paths$LoupeImages, stringr::coll(paste0(selected_data()$`Eyewear Lens Compatible`, "."))
-                 )
-        )
-      print("loupe_rec")
-      print(loupe_rec)
+    result <- c(glue::glue_safe("www/LoupeImages/", loupe_rec$LoupeImages[[2]]),
+                if_else(selected_data()$`Eyewear Lens Compatible` %in% c("Pi19", "Pi23"),
+                        glue::glue_safe("www/recs/", selected_data()$`Rec1`, ".jpeg"),
+                        glue::glue_safe("www/recs/", selected_data()$`Rec1`, ".jpg")
+                ),
+                if_else(selected_data()$`Eyewear Lens Compatible`  %in% c("Pi19", "Pi23"),
+                        glue::glue_safe("www/recs/", selected_data()$`Rec2`, ".jpeg"),
+                        glue::glue_safe("www/recs/", selected_data()$`Rec2`, ".jpg")
+                ),
+                glue::glue_safe("www/recs/", selected_data()$`Rec3`, ".jpg"),
+                glue::glue_safe("www/LoupeImages/", loupe_rec$LoupeImages[[1]]))
 
-      c(glue::glue_safe("www/LoupeImages/", loupe_rec$LoupeImages[[2]]),
-        if_else(selected_data()$`Eyewear Lens Compatible` == "Pi19" || selected_data()$`Eyewear Lens Compatible` == "Pi23",
-                glue::glue_safe("www/recs/", selected_data()$`Rec1`, ".jpeg"),
-                glue::glue_safe("www/recs/", selected_data()$`Rec1`, ".jpg")
-        ),
-        if_else(selected_data()$`Eyewear Lens Compatible` == "Pi19"|| selected_data()$`Eyewear Lens Compatible` == "Pi23",
-                glue::glue_safe("www/recs/", selected_data()$`Rec2`, ".jpeg"),
-                glue::glue_safe("www/recs/", selected_data()$`Rec2`, ".jpg")
-        ),
-        glue::glue_safe("www/recs/", selected_data()$`Rec3`, ".jpg"),
-        glue::glue_safe("www/LoupeImages/", loupe_rec$LoupeImages[[1]]))
-
+    ## print(result)
+    result
   })
+
   output$productImageF <- renderImage({
-    print("output_productImageF function")
-    print(image_location()[[1]])
+    ## print(image_location())
+
+
     list(src = image_location()[[1]],
          width = "100%",
          contentType = "image/png")

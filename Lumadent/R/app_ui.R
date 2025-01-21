@@ -8,13 +8,15 @@
 #' @noRd
 
 # Load Lumadent loupe data
-lumadent_data <- readxl::read_excel("data/Lumadent_loupe_data.xlsx")
+
+#lumadent_data <- readxl::read_excel("data/Lumadent_loupe_data.xlsx")
 
 # Load dental data
 
-dental_data <- readxl::read_excel("data/Dental_data.xlsx") %>%
-  filter(`Laser Mfg` != "") %>%
-  mutate(VLT = scales::percent(as.numeric(VLT)))
+#dental_data <- readxl::read_excel("data/Dental_data.xlsx") %>%
+#  filter(`Laser Mfg` != "") %>%
+#  mutate(VLT = scales::percent(as.numeric(VLT)))
+
 
 
 app_ui <- function(request) {
