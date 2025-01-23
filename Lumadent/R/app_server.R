@@ -58,7 +58,7 @@ lens_data <- googlesheets4::read_sheet(sheet_id, sheet = "Lens_details") %>%
 dental_data <- googlesheets4::read_sheet(sheet_id, sheet = "laser_info", col_types = "c") %>%
   filter(`Laser Mfg` != "") %>%
   select(-Website) %>%
-  mutate(VLT = scales::percent(as.numeric(VLT))) %>%
+  #mutate(VLT = scales::percent(as.numeric(VLT))) %>%
   left_join(lens_data, by = join_by(`Eyewear Lens Compatible` == Lens))
 
 app_server <- function(input, output, session) {
