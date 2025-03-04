@@ -1,0 +1,12 @@
+name: Lumadent
+title: Lumadent
+username: inva
+account: inva
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 11552876
+bundleId: 9714606
+url: https://inva.shinyapps.io/Lumadent/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
