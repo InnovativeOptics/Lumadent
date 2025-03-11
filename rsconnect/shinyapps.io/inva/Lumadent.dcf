@@ -5,7 +5,7 @@ account: inva
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 11552876
-bundleId: 9714606
+bundleId: 9925313
 url: https://inva.shinyapps.io/Lumadent/
 version: 1
 asMultiple: FALSE
